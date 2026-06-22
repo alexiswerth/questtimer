@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QuestTimer ⚔️</title>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* dark NEUTRAL base, GameBoy green as the accent (not green-on-green); gold/red/blue return for clarity */
+    --bg:#0e1110; --panel:#171b19; --panel2:#1f2522; --ink:#e7ece0; --muted:#8a978a;
+    --gold:#d8c861; --green:#9bbc0f; --dragon:#cf6a4a; --portal:#6aa9d0; --line:#2c352c;
+    --shadow:#050705;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;height:100%;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:'VT323',monospace; font-size:21px; line-height:1.3;
+    image-rendering:pixelated;
+  }
+  h1,h2,h3,.pix{font-family:'Press Start 2P',monospace; line-height:1.5;}
+  h1{font-size:18px;color:var(--gold);margin:0;}
+  h2{font-size:13px;color:var(--gold);margin:0 0 14px;}
+  h3{font-size:11px;color:var(--portal);margin:0 0 8px;}
+  button{
+    font-family:'Press Start 2P',monospace; font-size:10px; cursor:pointer;
+    background:var(--panel2); color:var(--ink); border:2px solid var(--line);
+    padding:10px 12px; box-shadow:3px 3px 0 var(--shadow);
+  }
+  button:hover{border-color:var(--gold);}
+  button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 var(--shadow);}
+  button.primary{background:#3a2f12;border-color:var(--gold);color:var(--gold);}
+  button.go{background:#13351f;border-color:var(--green);color:var(--green);}
+  button.danger{background:#3a1a16;border-color:var(--dragon);color:var(--dragon);}
+  input,select,textarea{
+    font-family:'VT323',monospace; font-size:19px; background:#0b0e15; color:var(--ink);
+    border:2px solid var(--line); padding:7px 9px; width:100%;
+  }
+  label{display:block;color:var(--muted);font-size:18px;margin:10px 0 3px;}
+  .panel{background:var(--panel);border:2px solid var(--line);box-shadow:4px 4px 0 var(--shadow);padding:18px;margin-bottom:16px;}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .tag{font-family:'Press Start 2P';font-size:8px;padding:3px 6px;border:1px solid var(--line);color:var(--muted);}
+  .tag.hi{color:var(--dragon);border-color:var(--dragon);}
+  .tag.med{color:var(--gold);border-color:var(--gold);}
+  .tag.low{color:var(--portal);border-color:var(--portal);}
+  .muted{color:var(--muted);}
+  .gold{color:var(--gold);} .green{color:var(--green);} .dragon{color:var(--dragon);}
+  .wrap{max-width:880px;margin:0 auto;padding:18px 16px 80px;}
+
+  /* handheld game-screen frame: the whole app sits inside a GameBoy-style screen */
+  #app{max-width:940px;margin:22px auto;background:var(--bg);
+       border:4px solid var(--line);border-radius:6px;
+       box-shadow:0 0 0 6px var(--panel), 0 0 0 10px #07090a, 0 14px 40px #000;
+       overflow:hidden;}
+  /* faint LCD scanlines for the handheld feel */
+  #app::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:40;
+       background:repeating-linear-gradient(to bottom, rgba(0,0,0,0) 0, rgba(0,0,0,0) 2px, rgba(0,0,0,.14) 3px);}
+
+  /* top bar = HUD strip */
+  .topbar{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid var(--line);padding:12px 16px;background:var(--panel2);position:sticky;top:0;z-index:5;}
+  .nav button{font-size:9px;padding:8px 10px;box-shadow:2px 2px 0 var(--shadow);}
+  .nav button.active{background:#3a2f12;border-color:var(--gold);color:var(--gold);}
+
+  /* timer */
+  .clock{font-family:'Press Start 2P';font-size:46px;color:var(--gold);text-align:center;margin:16px 0;text-shadow:3px 3px 0 var(--shadow);}
+  .activequest{text-align:center;}
+  .activequest .qname{font-size:30px;color:var(--ink);}
+
+  /* quest cards */
+  .qcard{border:2px solid var(--line);background:var(--panel2);padding:12px;margin-bottom:10px;}
+  .qcard.active{border-color:var(--gold);}
+  .qcard.done{opacity:.6;}
+  .qcard .qtop{display:flex;justify-content:space-between;gap:8px;align-items:center;}
+
+  /* map */
+  .map{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px;}
+  .loc{border:2px solid var(--line);background:radial-gradient(circle at 50% 20%, #20271f 0%, var(--panel) 70%);padding:14px;text-align:center;min-height:140px;position:relative;}
+  .loc.active{border-color:var(--gold);box-shadow:0 0 0 2px var(--gold) inset;}
+  .loc.done{border-color:var(--green);}
+  .loc .pin{font-size:34px;}
+  .bar{height:10px;background:#0b0e15;border:1px solid var(--line);margin-top:8px;}
+  .bar > i{display:block;height:100%;background:var(--green);}
+
+  /* metrics */
+  .metric{background:var(--panel2);border:2px solid var(--line);padding:10px;}
+  .metric .big{font-family:'Press Start 2P';font-size:14px;color:var(--gold);}
+
+  /* "now playing" focus badge */
+  .nowbadge{font-family:'Press Start 2P';font-size:8px;color:var(--green);
+    border:1px solid var(--green);padding:3px 6px;animation:pulse 1.1s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+
+  /* fantasy realm map (parchment) */
+  .realm{position:relative;min-height:430px;overflow:hidden;border-radius:8px;
+    border:6px double #6b4f2a; color:#3a2a14; font-family:'VT323',monospace;
+    background:radial-gradient(circle at 28% 28%, #ddc591 0, #cdae74 45%, #b69457 100%);
+    box-shadow:inset 0 0 70px rgba(70,45,18,.65), 4px 4px 0 var(--shadow);}
+  .realm .rtitle{position:absolute;top:10px;left:50%;transform:translateX(-50%);
+    font-family:'Press Start 2P';font-size:11px;color:#5a3f1e;letter-spacing:1px;}
+  .realm .terrain span{position:absolute;font-size:30px;opacity:.5;pointer-events:none;}
+  .realm .pin{position:absolute;transform:translate(-50%,-50%);width:128px;text-align:center;cursor:pointer;}
+  .realm .pin .mk{display:block;font-size:30px;line-height:1;filter:drop-shadow(1px 2px 0 rgba(0,0,0,.35));}
+  .realm .pin .lbl{display:inline-block;margin-top:3px;font-size:15px;line-height:1.15;
+    background:rgba(247,236,205,.88);border:1px solid #6b4f2a;padding:1px 5px;color:#3a2a14;}
+  .realm .pin.active .mk{animation:bob 1.2s ease-in-out infinite;}
+  .realm .pin.active .lbl{border-color:#3a6b1e;box-shadow:0 0 0 2px #5a8f2a;}
+  .realm .pin.done .lbl{opacity:.7;text-decoration:line-through;}
+  @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+  .realm .compass{position:absolute;bottom:8px;right:14px;font-size:32px;opacity:.7;}
+
+  /* overlays / modals */
+  .overlay{position:fixed;inset:0;background:rgba(5,6,10,.86);display:flex;align-items:center;justify-content:center;z-index:50;padding:20px;}
+  .modal{background:var(--panel);border:3px solid var(--gold);box-shadow:6px 6px 0 var(--shadow);max-width:560px;width:100%;padding:24px;max-height:90vh;overflow:auto;}
+  .modal.dragon{border-color:var(--dragon);}
+  .modal.mage{border-color:var(--portal);}
+  .hidden{display:none!important;}
+  .big-emoji{font-size:64px;text-align:center;margin:6px 0;}
+
+  /* intro */
+  #intro{position:fixed;inset:0;background:radial-gradient(circle at 50% 40%, #1b211d 0%, #07090a 80%);display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:100;text-align:center;gap:18px;}
+  #intro .title{font-size:26px;color:var(--gold);animation:flicker 2.5s infinite;}
+  @keyframes flicker{0%,100%{opacity:1}50%{opacity:.85}}
+  .float{animation:float 2s ease-in-out infinite;}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-10px)}}
+
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-8px)}40%{transform:translateX(8px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+  .shake{animation:shake .5s;}
+  @keyframes spin{from{transform:rotate(0) scale(.4);opacity:0}to{transform:rotate(360deg) scale(1.4);opacity:1}}
+  .portal-anim{animation:spin .9s ease-out;}
+  @keyframes pop{0%{transform:scale(.5);opacity:0}60%{transform:scale(1.15)}100%{transform:scale(1);opacity:1}}
+  .pop{animation:pop .5s;}
+</style>
+</head>
+<body>
+
+<!-- LOGIN INTRO -->
+<div id="intro">
+  <div class="big-emoji float">🧙‍♂️</div>
+  <div class="title pix">QuestTimer</div>
+  <div class="muted" style="font-size:22px;max-width:420px;">An adventure in focus. One quest at a time.</div>
+  <button class="primary" id="introBtn">▶ Let's go on an adventure</button>
+  <button id="resetBtn" style="background:none;border:none;box-shadow:none;color:var(--muted);font-size:9px;cursor:pointer;text-decoration:underline;">↺ start fresh (clear everything)</button>
+</div>
+
+<!-- APP -->
+<div id="app" class="hidden">
+  <div class="topbar">
+    <h1 class="pix">⚔ QuestTimer</h1>
+    <div class="row" style="gap:10px;">
+      <div class="nav row">
+        <button data-view="home" class="active">🗡 Today</button>
+        <button data-view="map">🏝 Island</button>
+      </div>
+      <button id="musicBtn" title="Music on/off">🔊</button>
+    </div>
+  </div>
+  <div class="wrap" id="screen"></div>
+</div>
+
+<!-- modal mount -->
+<div id="modalMount"></div>
+
+<script>
+"use strict";
+/* ----------------------------------------------------------
+   QuestTimer — ADHD Pomodoro x in-house legal time tracking
+   single file, localStorage. North star: encouraging, never fear.
+---------------------------------------------------------- */
+
+const KEY = 'questtimer.v1';
+const uid = () => Math.random().toString(36).slice(2,9);
+const today = () => new Date().toISOString().slice(0,10);
+const hrs = m => (m/60).toFixed(1); // 0.1-hr legal units
+
+let S = load();
+
+function load(){
+  try{ const r = JSON.parse(localStorage.getItem(KEY)); if(r){ if(r.musicOn===undefined) r.musicOn=true;
+        (r.quests||[]).forEach(q=>{ if(q.boardDate===undefined) q.boardDate=today(); }); // migrate to the daily-board model
+        return r; } }catch(e){}
+  // seed so it's not empty on first run (examples — delete anytime)
+  const m1=uid(), m2=uid();
+  return {
+    matters:[
+      {id:m1,name:'Acme MSA',stakeholder:'Sales',workType:'Commercial'},
+      {id:m2,name:'Q3 DSAR backlog',stakeholder:'Privacy Ops',workType:'Privacy'}
+    ],
+    quests:[], // start clean — a fresh board invites the first dump
+    logs:[],
+    switches:[],
+    activeId:null,
+    view:'home',
+    focusMin:25, breakMin:5,
+    musicOn:true
+  };
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(S)); }
+
+const matter = id => S.matters.find(m=>m.id===id);
+const quest = id => S.quests.find(q=>q.id===id);
+const active = () => quest(S.activeId);
+const logsFor = id => S.logs.filter(l=>l.questId===id);
+const spent = id => logsFor(id).reduce((a,l)=>a+l.minutes,0);
+const switchesToday = () => S.switches.filter(s=>s.date===today() && s.reason==='emergency').length;
+const esc = s => (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* the three places: Today (today's board), Island (unfinished from past days), Backlog (completed) */
+const isToday = q => q.boardDate===today();
+const todayQuests  = () => S.quests.filter(q=> q.status!=='complete' && isToday(q));
+const islandQuests = () => S.quests.filter(q=> q.status!=='complete' && !isToday(q));
+const doneQuests   = () => S.quests.filter(q=> q.status==='complete');
+
+/* ---------- TIMER ---------- */
+let timer = {running:false, remaining:0, total:0, int:null, onBreak:false};
+
+function startTimer(){
+  if(!S.activeId){ toast('Start a quest from Today first.'); return; }
+  if(timer.remaining<=0){ timer.total = S.focusMin*60; timer.remaining = timer.total; timer.onBreak=false; }
+  if(timer.running) return;
+  timer.running=true;
+  timer.int=setInterval(()=>{
+    timer.remaining--;
+    if(timer.remaining<=0){ clearInterval(timer.int); timer.running=false; blockComplete(); }
+    paintClock();
+  },1000);
+  render();
+}
+function pauseTimer(){ timer.running=false; clearInterval(timer.int); render(); }
+function logElapsedAndReset(){
+  const elapsed = Math.round((timer.total - timer.remaining)/60);
+  timer.running=false; clearInterval(timer.int);
+  if(elapsed>0 && S.activeId){ promptNarrative(elapsed); }
+  timer.remaining=0; timer.total=0;
+  render();
+}
+function blockComplete(){
+  ding();
+  const mins = Math.round(timer.total/60) || S.focusMin;
+  promptNarrative(mins, true);
+}
+
+/* ---------- VIEWS ---------- */
+function render(){
+  if(S.view==='log') S.view='home'; // old view name -> Today
+  // daily wipe: if the active quest sailed to the Island (new day) or is done, drop it
+  if(S.activeId){ const a=quest(S.activeId);
+    if(!a || a.status==='complete' || a.boardDate!==today()){ S.activeId=null; timer.running=false; clearInterval(timer.int); timer.remaining=0; } }
+  document.querySelectorAll('.nav button').forEach(b=>b.classList.toggle('active', b.dataset.view===S.view));
+  const el = document.getElementById('screen');
+  if(S.view==='home') el.innerHTML = viewToday();
+  else el.innerHTML = viewIsland();
+  bind();
+  paintClock();
+}
+
+function paintClock(){
+  const c = document.getElementById('clock');
+  if(!c) return;
+  const r = timer.remaining>0 ? timer.remaining : (S.focusMin*60);
+  const mm = String(Math.floor(r/60)).padStart(2,'0');
+  const ss = String(r%60).padStart(2,'0');
+  c.textContent = mm+':'+ss;
+}
+
+function viewToday(){
+  const a = active();
+  const q = (a && a.status!=='complete' && isToday(a)) ? a : null; // the one you're on
+  const others = todayQuests().filter(x=>!q || x.id!==q.id);
+  const islN = islandQuests().length, doneN = doneQuests().length;
+
+  // 1) quick capture — always at the top, one field, zero friction
+  const quickAdd = `<div class="panel">
+    <div class="row" style="justify-content:space-between;align-items:center;">
+      <h2 style="margin:0;">🗡 Today</h2>
+      <span class="muted" style="font-size:16px;">${new Date().toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'})}</span>
+    </div>
+    <div class="row" style="gap:8px;margin-top:12px;">
+      <input id="quick" placeholder="+ what needs doing today?" autocomplete="off" style="flex:1;">
+      <button class="go" data-act="addquick">➕ Dump it</button>
+    </div>
+  </div>`;
+
+  // 2) the quest you're on (clear NOW + running state)
+  let activeCard = '';
+  if(q){
+    const m = matter(q.matterId);
+    activeCard = `<div class="panel activequest" style="border-color:var(--gold);">
+      <div class="row" style="justify-content:center;gap:10px;">
+        <h3 style="margin:0;">⚔ NOW</h3>
+        ${timer.running?`<span class="nowbadge">● FOCUSING</span>`:`<span class="tag med">paused</span>`}
+      </div>
+      <div class="qname">${esc(q.name)}</div>
+      ${m?`<div class="muted">${esc(m.name)} · ${esc(m.stakeholder)}</div>`:''}
+      <div id="clock" class="clock">25:00</div>
+      <div class="row" style="justify-content:center;">
+        ${timer.running
+          ? `<button class="danger" data-act="pause">⏸ Pause</button>`
+          : `<button class="go" data-act="start">▶ Begin</button>`}
+        <button data-act="stoplog">⏹ Stop &amp; log</button>
+        <button class="primary" data-act="complete">🏁 Done!</button>
+      </div>
+      <div class="muted" style="margin-top:10px;">Logged <span class="gold">${hrs(spent(q.id))}h</span> · Est ${hrs(q.estimate)}h</div>
+      <div class="row" style="justify-content:center;margin-top:8px;">
+        <label style="margin:0;">Focus min:</label>
+        <input id="focusMin" type="number" min="1" max="120" value="${S.focusMin}" style="width:64px;">
+        <button data-act="switchq" class="danger">🌀 Switch</button>
+      </div>
+    </div>`;
+  }
+
+  // 3) the rest of today's board (one-tap ▶ Start each)
+  const listHtml = others.length
+    ? others.map(x=>qCard(x,'today')).join('')
+    : (q ? `<p class="muted">Just the one you're on. Nice and focused. 🗡</p>`
+         : `<p class="muted">Nothing on today's board yet. Dump your first quest above. ✨</p>`);
+  const dayPanel = `<div class="panel">
+    <h3 style="margin:0 0 10px;">${q?'Up next today':"Today's quests"}</h3>
+    ${listHtml}
+  </div>`;
+
+  // 4) the two other places, tucked out of the way
+  const footer = `<div class="row" style="justify-content:center;gap:10px;margin-top:4px;">
+    <button data-act="goisland">🏝 Island of Unfinished (${islN})</button>
+    <button data-act="openbacklog">📦 Won quests (${doneN})</button>
+  </div>`;
+
+  return quickAdd + activeCard + dayPanel + footer;
+}
+
+function qCard(q, ctx){
+  const m=matter(q.matterId);
+  const done = q.status==='complete';
+  const btn = ctx==='backlog' ? `<button data-summary="${q.id}">📜 View tale</button>`
+    : ctx==='island'  ? `<button class="go" data-rescue="${q.id}">⛵ Rescue to Today</button>`
+    : `<button class="go" data-start="${q.id}">▶ Start</button>`;
+  return `<div class="qcard ${done?'done':''}">
+    <div class="qtop">
+      <div><b>${done?'🏁 ':''}${esc(q.name)}</b>
+        <div class="muted">${m?esc(m.name)+' · '+esc(m.stakeholder):''}${q.deadline?' · due '+q.deadline:''}</div>
+      </div>
+      <span class="tag ${q.priority||'med'}">${q.priority||'med'}</span>
+    </div>
+    <div class="muted" style="margin-top:6px;">Est ${hrs(q.estimate)}h · Logged ${hrs(spent(q.id))}h</div>
+    <div class="row" style="margin-top:8px;">${btn}</div>
+  </div>`;
+}
+
+function viewIsland(){
+  const isl = islandQuests();
+  const pos = [[24,36],[57,28],[79,48],[37,64],[64,70],[47,46],[83,72],[18,70],[69,38],[41,82]];
+  const terrain = `<div class="terrain">
+    <span style="left:8%;top:20%">🌲</span><span style="left:72%;top:14%">🏔️</span>
+    <span style="left:43%;top:24%">🌲</span><span style="left:88%;top:60%">🌊</span>
+    <span style="left:12%;top:52%">⛰️</span><span style="left:56%;top:84%">🌳</span>
+    <span style="left:28%;top:86%">🏕️</span><span style="left:90%;top:28%">🌊</span></div>`;
+  const pins = isl.map((q,i)=>{
+    const p = pos[i%pos.length];
+    return `<div class="pin" style="left:${p[0]}%;top:${p[1]}%">
+      <span class="mk">⛺</span>
+      <span class="lbl">${esc(q.name)}<br><button class="go" data-rescue="${q.id}" style="font-size:9px;margin-top:3px;">⛵ Rescue</button></span>
+    </div>`;
+  }).join('');
+  const emptyNote = isl.length ? '' :
+    `<div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;font-size:19px;color:#5a3f1e;">Calm seas. 🌊<br>Nothing unfinished out here.</div>`;
+
+  // time records (kept, secondary — it's still a legal time tracker)
+  const byStake={}, byType={};
+  S.logs.forEach(l=>{ const q=quest(l.questId); if(!q)return; const m=matter(q.matterId); if(!m)return;
+    byStake[m.stakeholder]=(byStake[m.stakeholder]||0)+l.minutes;
+    byType[m.workType]=(byType[m.workType]||0)+l.minutes; });
+  const mrow = o => Object.keys(o).length? Object.entries(o).map(([k,v])=>`<div class="metric"><div class="big">${hrs(v)}h</div><div class="muted">${esc(k)}</div></div>`).join('') : `<div class="muted">no time logged yet</div>`;
+
+  return `
+  <div class="realm">
+    <div class="rtitle">~ Island of Unfinished ~</div>
+    ${terrain}${pins}${emptyNote}
+    <div class="compass">🧭</div>
+  </div>
+  <p class="muted" style="margin:10px 2px 16px;">Quests you didn't get to. Not lost, not done. <b>Rescue</b> one to bring it back to Today. 🌊</p>
+  <div class="panel"><h3>Time by stakeholder</h3><div class="map">${mrow(byStake)}</div></div>
+  <div class="panel"><h3>Time by work type</h3><div class="map">${mrow(byType)}</div></div>`;
+}
+
+/* ---------- ACTIONS ---------- */
+function bind(){
+  document.querySelectorAll('[data-act]').forEach(b=>b.onclick=()=>act(b.dataset.act));
+  document.querySelectorAll('[data-start]').forEach(b=>b.onclick=()=>startQuest(b.dataset.start));
+  document.querySelectorAll('[data-rescue]').forEach(b=>b.onclick=()=>rescue(b.dataset.rescue));
+  document.querySelectorAll('[data-summary]').forEach(b=>b.onclick=()=>showSummary(b.dataset.summary));
+  const fm=document.getElementById('focusMin'); if(fm) fm.onchange=()=>{S.focusMin=Math.max(1,+fm.value||25);save();};
+  const qk=document.getElementById('quick'); if(qk) qk.onkeydown=e=>{ if(e.key==='Enter') addQuick(); };
+}
+function act(a){
+  if(a==='start') startTimer();
+  else if(a==='pause') pauseTimer();
+  else if(a==='stoplog') logElapsedAndReset();
+  else if(a==='complete') completeQuest();
+  else if(a==='addquick') addQuick();
+  else if(a==='switchq') openBossGate(null);
+  else if(a==='goisland'){ S.view='map'; render(); }
+  else if(a==='openbacklog') openBacklog();
+}
+
+/* dump a quest onto Today with one field — zero friction */
+function addQuick(){
+  const name=val('quick'); if(!name){ toast('Name it first ✍️'); return; }
+  const m=S.matters[0]; // default bucket; refine later
+  S.quests.push({id:uid(),name,why:'',matterId:m?m.id:null,estimate:S.focusMin,
+    intake:today(),boardDate:today(),deadline:'',priority:'med',status:'available',summary:''});
+  save(); toast('On today\'s board ✨'); render();
+}
+
+/* one tap = make it active AND start the clock */
+function startQuest(id){
+  if(S.activeId && S.activeId!==id && active() && active().status!=='complete'){ openBossGate(id); return; }
+  const q=quest(id); if(!q) return;
+  S.activeId=id; if(q.status==='available') q.status='active'; q.boardDate=today();
+  timer.remaining=0; save(); S.view='home'; render(); startTimer();
+}
+
+/* pull a quest off the Island back into Today */
+function rescue(id){
+  const q=quest(id); if(!q) return;
+  q.boardDate=today(); if(q.status==='complete') q.status='available';
+  save(); S.view='home'; toast('Rescued to Today! ⛵'); render();
+}
+
+/* the archive of won quests (completed) — opened on demand, never in the way */
+function openBacklog(){
+  const done=doneQuests();
+  const list = done.length ? done.map(q=>qCard(q,'backlog')).join('') : `<p class="muted">No won quests yet. Go slay one. 🗡</p>`;
+  modal(`<div class="modal" style="border-color:var(--green)">
+    <h2 class="green">📦 Won Quests</h2>
+    <p class="muted">Your finished tales and time records.</p>
+    <div style="max-height:50vh;overflow:auto;margin-top:8px;">${list}</div>
+    <div style="margin-top:14px;"><button data-close class="primary">Close</button></div>
+  </div>`);
+}
+
+function tryActivate(id){
+  if(S.activeId && S.activeId!==id){ openBossGate(id); return; }
+  S.activeId=id; const q=quest(id); if(q&&q.status==='available') q.status='active';
+  if(q) q.boardDate=today();
+  timer.remaining=0; save(); S.view='home'; render();
+}
+
+/* ---------- BOSS GATE (hard) ---------- */
+function openBossGate(targetId){
+  modal(`<div class="modal dragon">
+    <div class="big-emoji">🐉</div>
+    <h2 class="dragon">The Switch Boss</h2>
+    <p>"HALT. You're leaving an active quest. Is this a true dragon, or a shiny pebble?"</p>
+    <p class="muted">The bar: someone took poison / got stabbed. A real, time-sensitive emergency, not a feeling.</p>
+    <div class="row" style="margin-top:14px;">
+      <button class="danger" id="bgEmerg">🔥 Someone asked — real emergency</button>
+      <button id="bgEmo">🌧 I'm stressed / avoiding / overwhelmed</button>
+    </div>
+    <div style="margin-top:14px;"><button data-close>✕ Never mind, stay</button></div>
+  </div>`);
+  document.getElementById('bgEmerg').onclick=()=>bossEmergency(targetId);
+  document.getElementById('bgEmo').onclick=()=>masterMage();
+}
+
+function bossEmergency(targetId){
+  if(switchesToday()>=2){
+    modal(`<div class="modal dragon"><div class="big-emoji">🛡️</div>
+      <h2 class="dragon">Two battles already today</h2>
+      <p>"You've switched twice today, hero. Even real dragons must wait till tomorrow. Protect your focus."</p>
+      <button data-close class="primary">Back to my quest</button></div>`);
+    return;
+  }
+  const need2 = switchesToday()===1;
+  modal(`<div class="modal dragon">
+    <div class="big-emoji">⚔️</div>
+    <h2 class="dragon">Prove the emergency</h2>
+    ${need2?`<p class="dragon">This is your 2nd switch today — it must be a true emergency.</p>`:''}
+    <label>Who asked? (person)</label><input id="e_who" placeholder="boss / colleague / partner / mom…">
+    <label>What is it?</label><input id="e_what" placeholder="the task">
+    <label>Why must it be done TODAY and can't wait?</label><textarea id="e_why" rows="3" placeholder="type it out…"></textarea>
+    <div class="row" style="margin-top:14px;">
+      <button class="go" id="e_go">⚔ Fight the boss</button>
+      <button data-close>✕ Cancel</button>
+    </div></div>`);
+  document.getElementById('e_go').onclick=()=>{
+    const who=val('e_who'), what=val('e_what'), why=val('e_why');
+    if(!who||!what||!why){ toast('Fill all three to prove it.'); return; }
+    S.switches.push({date:today(),reason:'emergency',who,what,why});
+    // spawn the new task as a tracked quest, then activate it
+    let id=targetId;
+    if(!id){
+      id=uid();
+      const m=S.matters[0];
+      S.quests.push({id,name:what,why:`${who} asked: ${why}`,matterId:m?m.id:null,estimate:30,
+        intake:today(),boardDate:today(),deadline:today(),priority:'high',status:'available',summary:''});
+    }
+    save();
+    battleThenPortal(()=>{ if(active()) active().status='available'; S.activeId=id; const q=quest(id); if(q)q.status='active'; timer.remaining=0; save(); S.view='home'; closeModal(); render(); });
+  };
+}
+
+function masterMage(){
+  const q=active();
+  const done = q? logsFor(q.id) : [];
+  const summaryList = done.length? done.map(l=>`<li>${esc(l.narrative)} <span class="muted">(${hrs(l.minutes)}h)</span></li>`).join('') : '<li class="muted">You haven\'t logged steps yet — that\'s okay.</li>';
+  modal(`<div class="modal mage">
+    <div class="big-emoji float">🧙‍♂️</div>
+    <h2 style="color:var(--portal)">The Master Mage appears</h2>
+    <p>"Breathe, ${''}friend. You don't need to flee, you need a smaller next step. You <span class="gold">can</span> do this."</p>
+    ${q?`<h3>What you've already done on "${esc(q.name)}":</h3><ul>${summaryList}</ul>
+    <div class="muted">That's <span class="gold">${hrs(spent(q.id))}h</span> of real progress. The estimate was ${hrs(q.estimate)}h.</div>`:''}
+    <label>What is the SMALLEST next step? (just name it)</label>
+    <input id="mm_step" placeholder="one tiny thing…">
+    <div class="row" style="margin-top:14px;">
+      <button class="go" id="mm_go">🛡 I've got this — back to my quest</button>
+    </div>
+    <p class="muted" style="margin-top:10px;">(No switch logged against you. This was care, not a failure.)</p>
+  </div>`);
+  document.getElementById('mm_go').onclick=()=>{
+    S.switches.push({date:today(),reason:'emotional'});
+    const step=val('mm_step');
+    save(); closeModal();
+    toast(step? '✨ Next step: '+step : '✨ You\'ve got this.');
+  };
+}
+
+function battleThenPortal(then){
+  modal(`<div class="modal dragon" id="battleModal">
+    <div class="big-emoji shake">⚔️🐉</div><h2 class="dragon">Battle!</h2>
+    <p class="muted">Defeating the boss…</p></div>`);
+  setTimeout(()=>{
+    modal(`<div class="modal mage"><div class="big-emoji portal-anim">🌀</div>
+      <h2 style="color:var(--portal)">Through the portal…</h2></div>`);
+    setTimeout(then,1000);
+  },900);
+}
+
+/* ---------- COMPLETE QUEST -> FINAL BOSS ---------- */
+function completeQuest(){
+  const q=active(); if(!q){toast('No active quest.');return;}
+  const ls=logsFor(q.id);
+  const total=spent(q.id);
+  const narr = ls.length? ls.map(l=>'• '+l.narrative).join('\n') : '• (no steps logged)';
+  const summary =
+`QUEST COMPLETE: ${q.name}
+Why: ${q.why||'—'}
+Matter: ${matter(q.matterId)?matter(q.matterId).name:'—'}
+What I did:
+${narr}
+Time: ${hrs(total)}h actual vs ${hrs(q.estimate)}h estimated`;
+  q.summary=summary; q.status='complete'; S.activeId=null; timer.remaining=0;
+  S.switches=S.switches; save();
+  const over = total>q.estimate;
+  modal(`<div class="modal" style="border-color:var(--green)">
+    <div class="big-emoji pop">🏆</div>
+    <h2 class="green">Quest Complete!</h2>
+    <p>The Final Boss reads your tale and steps aside. <span class="green">LEVEL UP.</span></p>
+    <pre style="white-space:pre-wrap;background:#0b0e15;border:2px solid var(--line);padding:12px;font-family:'VT323';font-size:19px;">${esc(summary)}</pre>
+    <p class="muted">${over?'That dragon was tougher than you thought — not a failure, just good data. 🐉':'Right on your estimate — nicely judged. ✨'}</p>
+    <button class="go" data-close>Onward →</button>
+  </div>`);
+}
+function showSummary(id){
+  const q=quest(id);
+  modal(`<div class="modal" style="border-color:var(--green)"><h2 class="green">📜 The tale of this quest</h2>
+   <pre style="white-space:pre-wrap;background:#0b0e15;border:2px solid var(--line);padding:12px;font-family:'VT323';font-size:19px;">${esc(q.summary||'No summary.')}</pre>
+   <button data-close class="primary">Close</button></div>`);
+}
+
+/* ---------- NARRATIVE PROMPT ---------- */
+function promptNarrative(mins, wasFull){
+  const q=active(); if(!q){ return; }
+  modal(`<div class="modal">
+    <div class="big-emoji">📖</div>
+    <h2>${wasFull?'Focus block complete!':'Logging your time'}</h2>
+    <p class="muted">${hrs(mins)}h on "${esc(q.name)}". What did you do? (becomes your auto-summary)</p>
+    <textarea id="n_text" rows="3" placeholder="e.g. drafted the IP indemnity carve-out"></textarea>
+    <div class="row" style="margin-top:12px;">
+      <button class="go" id="n_save">💾 Log it</button>
+      <button data-close>Skip</button>
+    </div></div>`);
+  document.getElementById('n_save').onclick=()=>{
+    S.logs.push({id:uid(),questId:q.id,date:today(),minutes:mins,narrative:val('n_text')||'(focus block)'});
+    save(); closeModal(); toast('Logged '+hrs(mins)+'h ✨'); render();
+  };
+}
+
+/* ---------- MODAL / TOAST / SOUND ---------- */
+function modal(html){ const mt=document.getElementById('modalMount'); mt.innerHTML=`<div class="overlay">${html}</div>`;
+  mt.querySelectorAll('[data-close]').forEach(b=>b.onclick=closeModal); }
+function closeModal(){ document.getElementById('modalMount').innerHTML=''; }
+function toast(msg){ const t=document.createElement('div'); t.textContent=msg;
+  t.style.cssText='position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#111;border:2px solid var(--gold);color:var(--gold);padding:10px 16px;font-family:VT323;font-size:20px;z-index:200;box-shadow:3px 3px 0 #000;';
+  document.body.appendChild(t); setTimeout(()=>t.remove(),2200); }
+function val(id){ const e=document.getElementById(id); return e? e.value.trim():''; }
+
+let actx;
+function ding(){ tone([660,880],0.12); }
+function jingle(){ tone([523,659,784,1047],0.16); }
+function tone(notes,dur){ try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)();
+  notes.forEach((f,i)=>{ const o=actx.createOscillator(),g=actx.createGain(); o.type='square'; o.frequency.value=f;
+    o.connect(g); g.connect(actx.destination); const t=actx.currentTime+i*dur; g.gain.setValueAtTime(0.06,t); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+    o.start(t); o.stop(t+dur); }); }catch(e){} }
+
+/* ---------- BACKGROUND MUSIC (chiptune, original loop, no copyrighted tune) ---------- */
+let musicTimer=null, mstep=0;
+// 0 = rest. An original ADVENTUROUS overworld theme in D major: heroic rising arpeggios + marching bass.
+// Square = lead, triangle = bass. Phrase A (set off) -> Phrase B (climb) -> resolve home.
+const MEL=[440,0,587,0,740,0,880,0, 784,740,659,0,587,0,440,0,
+           494,0,659,0,784,0,988,0, 880,784,740,0,587,0,0,0];
+const BASS=[147,0,0,0, 110,0,0,0, 98,0,0,0, 147,0,0,0,
+            123,0,0,0, 98,0,0,0, 110,0,0,0, 147,0,0,0];
+function blip(freq,dur,type,vol){
+  if(!freq||!actx) return;
+  const o=actx.createOscillator(), g=actx.createGain();
+  o.type=type; o.frequency.value=freq; o.connect(g); g.connect(actx.destination);
+  const t=actx.currentTime;
+  g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.02);
+  g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.start(t); o.stop(t+dur+0.03);
+}
+function startMusic(){
+  if(S.musicOn===false) return;
+  try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); }catch(e){ return; }
+  if(musicTimer) return;
+  musicTimer=setInterval(()=>{
+    blip(MEL[mstep], 0.34, 'square', 0.045);          // lead melody (rings longer = more melodic)
+    if(mstep%4===0) blip(BASS[mstep], 0.42, 'triangle', 0.055); // marching bass on each beat
+    mstep=(mstep+1)%MEL.length;
+  }, 200);
+}
+function stopMusic(){ if(musicTimer){ clearInterval(musicTimer); musicTimer=null; } }
+function toggleMusic(){ S.musicOn=!S.musicOn; save(); if(S.musicOn) startMusic(); else stopMusic(); paintMusicBtn(); }
+function paintMusicBtn(){ const b=document.getElementById('musicBtn'); if(b) b.textContent=(S.musicOn!==false)?'🔊':'🔇'; }
+
+/* ---------- BOOT ---------- */
+document.getElementById('introBtn').onclick=()=>{
+  jingle();
+  document.getElementById('intro').classList.add('hidden');
+  document.getElementById('app').classList.remove('hidden');
+  startMusic(); paintMusicBtn();
+  render();
+};
+document.querySelectorAll('.nav button').forEach(b=>b.onclick=()=>{S.view=b.dataset.view;render();});
+document.getElementById('musicBtn').onclick=toggleMusic;
+document.getElementById('resetBtn').onclick=()=>{
+  if(confirm('Start fresh? This clears every quest and wipes the board back to empty.')){ localStorage.removeItem(KEY); location.reload(); }
+};
+</script>
+</body>
+</html>
