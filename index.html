@@ -636,6 +636,22 @@ function toggleMusic(){ S.musicOn=!S.musicOn; save(); if(S.musicOn) startMusic()
 function paintMusicBtn(){ const b=document.getElementById('musicBtn'); if(b) b.textContent=(S.musicOn!==false)?'🔊':'🔇'; }
 
 /* ---------- BOOT ---------- */
+/* one-click prefill: open with ?add=Task A|Task B and they drop onto Today */
+(function importFromURL(){
+  const raw=new URLSearchParams(location.search).get('add'); if(!raw) return;
+  let added=0;
+  raw.split('|').map(s=>s.trim()).filter(Boolean).forEach(name=>{
+    const dupe=S.quests.some(q=>q.name===name && q.status!=='complete' && q.boardDate===today());
+    if(dupe) return;
+    const m=S.matters[0];
+    S.quests.push({id:uid(),name,why:'',matterId:m?m.id:null,estimate:S.focusMin,
+      intake:today(),boardDate:today(),deadline:'',priority:'med',status:'available',summary:''});
+    added++;
+  });
+  if(added) save();
+  history.replaceState(null,'',location.pathname); // clean URL so refresh won't re-add
+})();
+
 document.getElementById('introBtn').onclick=()=>{
   jingle();
   document.getElementById('intro').classList.add('hidden');
