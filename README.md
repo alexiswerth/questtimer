@@ -2,7 +2,7 @@
 
 An ADHD-friendly Pomodoro and in-house legal time tracker, themed as a 90s Zelda quest. Built plan-first in Claude Code (Joshua's Build-1 challenge).
 
-**Live app:** _(GitHub Pages link goes here once it's live)_
+**Live app:** https://alexiswerth.github.io/questtimer/
 
 ## Why it exists
 
