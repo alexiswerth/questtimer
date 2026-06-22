@@ -171,7 +171,7 @@
 
 const KEY = 'questtimer.v1';
 const uid = () => Math.random().toString(36).slice(2,9);
-const today = () => new Date().toISOString().slice(0,10);
+const today = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }; // LOCAL date (not UTC) so the day rolls over at the user's midnight, not London's
 const hrs = m => (m/60).toFixed(1); // 0.1-hr legal units
 
 let S = load();
@@ -320,13 +320,23 @@ function viewToday(){
     ${listHtml}
   </div>`;
 
+  // 3b) your wins from today — stay visible on the board so a finished quest never feels "lost"
+  const doneToday = doneQuests().filter(x=>x.boardDate===today());
+  const wonPanel = doneToday.length ? `<div class="panel" style="border-color:var(--green);">
+    <h3 class="green" style="margin:0 0 8px;">✓ Done today (${doneToday.length})</h3>
+    ${doneToday.map(x=>`<div class="row" style="justify-content:space-between;align-items:center;opacity:.85;">
+      <span>🏁 <s>${esc(x.name)}</s> <span class="muted">· ${hrs(spent(x.id))}h</span></span>
+      <button data-summary="${x.id}" style="font-size:12px;">📜 tale</button>
+    </div>`).join('')}
+  </div>` : '';
+
   // 4) the two other places, tucked out of the way
   const footer = `<div class="row" style="justify-content:center;gap:10px;margin-top:4px;">
     <button data-act="goisland">🏝 Island of Unfinished (${islN})</button>
     <button data-act="openbacklog">📦 Won quests (${doneN})</button>
   </div>`;
 
-  return quickAdd + activeCard + dayPanel + footer;
+  return quickAdd + activeCard + dayPanel + wonPanel + footer;
 }
 
 function qCard(q, ctx){
@@ -550,7 +560,8 @@ What I did:
 ${narr}
 Time: ${hrs(total)}h actual vs ${hrs(q.estimate)}h estimated`;
   q.summary=summary; q.status='complete'; S.activeId=null; timer.remaining=0;
-  S.switches=S.switches; save();
+  save();
+  render(); // refresh the board NOW so the finished quest moves to "Done today" + Won quests count bumps
   const over = total>q.estimate;
   modal(`<div class="modal" style="border-color:var(--green)">
     <div class="big-emoji pop">🏆</div>
