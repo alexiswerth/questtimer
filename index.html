@@ -170,18 +170,18 @@
 ---------------------------------------------------------- */
 
 const KEY = 'questtimer.v1';
-const uid = () => Math.random().toString(36).slice(2,9);
+const uid = () => 'id-' + (++S.seq); // deterministic counter (not Math.random): reproducible + collision-free
 const today = () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }; // LOCAL date (not UTC) so the day rolls over at the user's midnight, not London's
 const hrs = m => (m/60).toFixed(1); // 0.1-hr legal units
 
 let S = load();
 
 function load(){
-  try{ const r = JSON.parse(localStorage.getItem(KEY)); if(r){ if(r.musicOn===undefined) r.musicOn=true;
+  try{ const r = JSON.parse(localStorage.getItem(KEY)); if(r){ if(r.musicOn===undefined) r.musicOn=true; if(r.seq===undefined) r.seq=0; // migrate older saves to the counter
         (r.quests||[]).forEach(q=>{ if(q.boardDate===undefined) q.boardDate=today(); }); // migrate to the daily-board model
         return r; } }catch(e){}
   // seed so it's not empty on first run (examples — delete anytime)
-  const m1=uid(), m2=uid();
+  const m1='m-1', m2='m-2'; // fixed seed ids — uid() can't run yet (S isn't born until load() returns)
   return {
     matters:[
       {id:m1,name:'Acme MSA',stakeholder:'Sales',workType:'Commercial'},
@@ -191,6 +191,7 @@ function load(){
     logs:[],
     switches:[],
     activeId:null,
+    seq:0, // the id counter (powers uid())
     view:'home',
     focusMin:25, breakMin:5,
     musicOn:true
